@@ -1,0 +1,8 @@
+.local/
+media/
+output/
+__pycache__/
+*.blend*
+*.log
+.env*
+node_modules/
