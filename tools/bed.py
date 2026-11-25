@@ -1,4 +1,4 @@
-"""Generate the painted lake bottom as a tileable, world-space colour texture."""
+"""Generate a rich jewel-emerald painterly lake bottom texture with seagrass beds and warm sand pockets."""
 
 import bpy
 import numpy as np
@@ -27,19 +27,27 @@ def material(mesh, obj):
         )
 
     n8, n23, n57, n130, n310 = [noise(i) for i in (8, 23, 57, 130, 310)]
-    undergrowth = np.clip((n8 * 0.42 + n23 * 0.36 + n57 * 0.22 - 0.43) * 3.5, 0, 1)
-    stone = np.clip((n57 * 0.32 + n130 * 0.48 + n310 * 0.20 - 0.57) * 4, 0, 1)
-    facet = 0.69 + 0.25 * n23 + 0.15 * n130 + 0.12 * n310
-    silt = np.array([0.071, 0.229, 0.213])
-    weed = np.array([0.043, 0.159, 0.155])
-    gravel = np.array([0.22, 0.302, 0.265])
-    color = silt + (weed - silt) * undergrowth[:, :, None]
-    color = (color + (gravel - color) * stone[:, :, None]) * facet[:, :, None]
-    # Hairline deposits in the sand make the bottom read through a still spot in the water.
-    ripple = np.exp(-22 * abs(np.sin(52 * np.pi * y + 4 * np.sin(x * 12 * np.pi) + 3 * n23)))
-    color += ripple[:, :, None] * np.array([0.009, 0.014, 0.011])
+    seagrass = np.clip((n8 * 0.45 + n23 * 0.35 + n57 * 0.20 - 0.42) * 3.6, 0, 1)
+    sand = np.clip((n8 * 0.50 + n23 * 0.50 - 0.55) * 3.4, 0, 1)
+    pebble = np.clip((n57 * 0.30 + n130 * 0.48 + n310 * 0.22 - 0.58) * 4.4, 0, 1)
+    facet = 0.74 + 0.20 * n23 + 0.14 * n130 + 0.08 * n310
+
+    # Deep saturated jewel emerald-teal base (high contrast against orange fish & red-white boat!)
+    emerald = np.array([0.028, 0.215, 0.195])
+    deep_weed = np.array([0.015, 0.135, 0.132])
+    warm_sand = np.array([0.135, 0.265, 0.205])
+    gravel = np.array([0.175, 0.275, 0.225])
+
+    color = emerald + (deep_weed - emerald) * seagrass[:, :, None]
+    color = color + (warm_sand - color) * (sand[:, :, None] * 0.55)
+    color = (color + (gravel - color) * pebble[:, :, None]) * facet[:, :, None]
+
+    # Subtle sunlit painterly sand ripples
+    ripple = np.exp(-22 * abs(np.sin(44 * np.pi * y + 3.6 * np.sin(x * 10 * np.pi) + 2.6 * n23)))
+    color += ripple[:, :, None] * np.array([0.012, 0.025, 0.020])
+
     rgba = np.ones((n, n, 4), np.float32)
-    rgba[:, :, :3] = color
+    rgba[:, :, :3] = np.clip(color, 0, 1)
     while mesh.color_attributes:
         mesh.color_attributes.remove(mesh.color_attributes[0])
     image = bpy.data.images.new("Lagoon gravel", width=n, height=n)
@@ -54,7 +62,7 @@ def material(mesh, obj):
     tex = mat.node_tree.nodes.new("ShaderNodeTexImage")
     tex.image = image
     bsdf = mat.node_tree.nodes.get("Principled BSDF")
-    bsdf.inputs["Roughness"].default_value = 1
+    bsdf.inputs["Roughness"].default_value = 0.96
     mat.node_tree.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
     obj.data.materials.clear()
     obj.data.materials.append(mat)

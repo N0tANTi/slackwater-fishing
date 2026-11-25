@@ -6,9 +6,26 @@ export const smooth = (n: number) => {
 };
 export type Phase = 'row' | 'aim' | 'cast' | 'wait' | 'bite' | 'reel' | 'lift' | 'catch' | 'miss';
 export type Species = 'perch' | 'carp';
-export const species = {
-  perch: { name: 'Reed Perch', note: 'waits under the weed', color: '#9eb750' },
-  carp: { name: 'Lantern Carp', note: 'rises when the light goes gold', color: '#eab34d' },
+export const species: Record<
+  Species,
+  { name: string; sub: string; note: string; habitat: string; color: string; accent: string }
+> = {
+  perch: {
+    name: '芦苇鲈',
+    sub: 'Reed Perch',
+    note: '常潜伏在清浅水草与鹅卵石间，白日最易上钩',
+    habitat: '白昼 · 浅滩水草',
+    color: '#93b652',
+    accent: '#486c3e',
+  },
+  carp: {
+    name: '灯笼鲤',
+    sub: 'Lantern Carp',
+    note: '待暮色泛起金光时浮近水面，尾鳍如暖灯摇曳',
+    habitat: '暮金 · 暖光静水',
+    color: '#efa63d',
+    accent: '#c95c28',
+  },
 };
 export interface State {
   frame: number;
@@ -26,17 +43,32 @@ export interface State {
   size: number;
   perch: number;
   carp: number;
+  bestPerch: number;
+  bestCarp: number;
+  isRecord: boolean;
   reel: number;
   slack: number;
   used: boolean;
   lastAction: boolean;
   lastHelp: boolean;
   help: boolean;
+  lastJournal: boolean;
+  journal: boolean;
   wait: number;
   miss: string;
   sound: string;
   soundAt: number;
   trails: number[][];
+  rowBlend: number;
+  rodBlend: number;
+  holdBlend: number;
+  oarPhase: number;
+  camZoom: number;
+  camZoomV: number;
+  camX: number;
+  camVX: number;
+  camZ: number;
+  camVZ: number;
 }
 export const initial: State = {
   frame: 0,
@@ -54,17 +86,32 @@ export const initial: State = {
   size: 47,
   perch: 0,
   carp: 0,
+  bestPerch: 0,
+  bestCarp: 0,
+  isRecord: false,
   reel: 0,
   slack: 0,
   used: false,
   lastAction: false,
   lastHelp: false,
   help: false,
+  lastJournal: false,
+  journal: false,
   wait: 0,
   miss: '',
   sound: '',
   soundAt: -100,
   trails: [],
+  rowBlend: 0,
+  rodBlend: 1,
+  holdBlend: 0,
+  oarPhase: -Math.PI * 0.5,
+  camZoom: 0,
+  camZoomV: 0,
+  camX: 0,
+  camVX: 0,
+  camZ: 0.05,
+  camVZ: 0,
 };
 type Input = { keys: string[]; pointer?: { down?: boolean }; buttons?: string[] };
 const change = (s: State, phase: Phase, sound = '') => {
@@ -84,10 +131,12 @@ export function step(old: State, input: Input, frame: number): State {
   const has = (...choices: string[]) => choices.some((k) => keys.includes(k));
   const action = has(' ', 'space', 'spacebar') || !!input.pointer?.down || !!input.buttons?.includes('Left');
   const help = has('h', 'keyh', '?');
+  const journal = has('j', 'keyj', 'tab');
   const pressed = action && !old.lastAction,
     released = !action && old.lastAction;
-  const s: State = { ...old, frame, lastAction: action, lastHelp: help };
+  const s: State = { ...old, frame, lastAction: action, lastHelp: help, lastJournal: journal };
   if (help && !old.lastHelp) s.help = !s.help;
+  if (journal && !old.lastJournal) s.journal = !s.journal;
   const age = frame - s.since;
   const drive = Number(has('arrowup', 'w', 'keyw')) - Number(has('arrowdown', 's', 'keys'));
   const steer = Number(has('arrowleft', 'a', 'keya')) - Number(has('arrowright', 'd', 'keyd'));
@@ -105,7 +154,7 @@ export function step(old: State, input: Input, frame: number): State {
     ];
   const cancel = has('escape', 'backspace', 'x', 'keyx');
   if (cancel && !['row', 'lift', 'catch', 'miss'].includes(s.phase)) {
-    s.miss = 'Line retrieved';
+    s.miss = '已收回鱼线';
     change(s, 'miss');
     return s;
   }
@@ -138,14 +187,14 @@ export function step(old: State, input: Input, frame: number): State {
       break;
     case 'wait':
       if (pressed) {
-        s.miss = 'Too early';
+        s.miss = '提竿太早了，再等等浮漂';
         change(s, 'miss');
       } else if (age >= s.wait) change(s, 'bite', 'plop');
       break;
     case 'bite':
       if (pressed) change(s, 'reel', 'strike');
       else if (age >= 34) {
-        s.miss = 'The fish slipped away';
+        s.miss = '鱼儿悄悄溜走了';
         change(s, 'miss');
       }
       break;
@@ -154,13 +203,20 @@ export function step(old: State, input: Input, frame: number): State {
       s.slack = action ? Math.max(0, s.slack - 2) : s.slack + 1;
       if (s.reel >= 1) change(s, 'lift');
       else if (s.slack > 32) {
-        s.miss = 'The line went slack';
+        s.miss = '鱼线松了，鱼儿脱钩了';
         change(s, 'miss');
       }
       break;
     case 'lift':
       if (age >= 21) {
         s[s.target]++;
+        if (s.target === 'perch') {
+          s.isRecord = s.size > s.bestPerch;
+          s.bestPerch = Math.max(s.bestPerch, s.size);
+        } else {
+          s.isRecord = s.size > s.bestCarp;
+          s.bestCarp = Math.max(s.bestCarp, s.size);
+        }
         change(s, 'catch', 'land');
       }
       break;
@@ -171,6 +227,52 @@ export function step(old: State, input: Input, frame: number): State {
       if (age >= 32 || (pressed && age > 8)) change(s, 'row');
       break;
   }
+
+  // Smooth continuous transition channels (zero 1-frame pops between rowing, stowing oars, casting, and holding catch!)
+  const boatSpeed = Math.hypot(s.vx, s.vz);
+  const wantRow = s.phase === 'row' && (drive !== 0 || steer !== 0 || boatSpeed > 0.018);
+  s.rowBlend = clamp(old.rowBlend + (wantRow ? 0.105 : -0.085), 0, 1);
+
+  if (wantRow) {
+    // Smooth integrated rowing cycle speed proportional to boat propulsion
+    const speedFactor = clamp(boatSpeed / 0.055, 0.35, 1.15);
+    s.oarPhase = old.oarPhase + 0.155 * speedFactor;
+  } else if (s.rowBlend > 0.001) {
+    // Gently feather blades up out of the water (toward -pi/2 mod 2pi) as oars swing smoothly back to stow!
+    const tau = Math.PI * 2;
+    const target = Math.round((old.oarPhase + Math.PI * 0.5) / tau) * tau - Math.PI * 0.5;
+    s.oarPhase = old.oarPhase + (target - old.oarPhase) * 0.22;
+  } else {
+    s.oarPhase = -Math.PI * 0.5;
+  }
+
+  const wantHold = s.phase === 'catch';
+  s.holdBlend = clamp(old.holdBlend + (wantHold ? 0.15 : -0.15), 0, 1);
+
+  const wantRod =
+    ['aim', 'cast', 'wait', 'bite', 'reel', 'lift'].includes(s.phase) ||
+    (s.phase === 'row' && !wantRow && s.rowBlend < 0.25);
+  s.rodBlend = clamp(old.rodBlend + (wantRod ? 0.115 : -0.125), 0, 1);
+
+  // 2nd-order critically damped cinema dolly spring (C1-smooth velocity, zero overshoot, zero camera-lurch!)
+  const newAge = frame - s.since;
+  const wantZoom = s.phase === 'catch' && newAge < 76 ? 1 : 0;
+  const wz = 0.21;
+  const accZoom = wz * wz * (wantZoom - old.camZoom) - 2 * wz * old.camZoomV;
+  s.camZoomV = old.camZoomV + accZoom;
+  s.camZoom = clamp(old.camZoom + s.camZoomV, 0, 1);
+
+  const focusBias = ['cast', 'wait', 'bite', 'reel'].includes(s.phase) ? 0.16 : 0;
+  const targetCamX = s.x - 1.18 * s.camZoom + (s.castX - s.x) * focusBias;
+  const targetCamZ = s.z + 0.05 + (s.castZ - s.z) * focusBias;
+  const wp = 0.20;
+  const accX = wp * wp * (targetCamX - old.camX) - 2 * wp * old.camVX;
+  const accZ = wp * wp * (targetCamZ - old.camZ) - 2 * wp * old.camVZ;
+  s.camVX = old.camVX + accX;
+  s.camVZ = old.camVZ + accZ;
+  s.camX = old.camX + s.camVX;
+  s.camZ = old.camZ + s.camVZ;
+
   return s;
 }
 export const demoKeys: Record<number, string[]> = {

@@ -55,8 +55,8 @@ try {
         Move-Item -LiteralPath $unpacked -Destination $dest
         [IO.Directory]::Delete($stage)
     }
-    $required = @('bed.glb','lagoon.glb','skiff.glb','oar.glb','carp.glb','perch.glb','minnow.glb','ray.glb','otter.glb','wave-normal.png',
-                  'fisher-rest.glb','fisher-hold.glb','fisher-cast.glb','lake.wav','cast.wav','plop.wav','strike.wav','land.wav')
+    $required = @('bed.glb','lagoon.glb','skiff.glb','oar.glb','carp.glb','perch.glb','koi.glb','minnow.glb','ray.glb','otter.glb','wave-normal.png',
+                  'fisher-rest.glb','fisher-hold.glb','fisher-cast.glb','fisher-row.glb','bgm.wav','lake.wav','cast.wav','plop.wav','strike.wav','land.wav')
     $missing = $required | Where-Object { !(Test-Path -LiteralPath (Join-Path 'media' $_)) }
     $stamp = Join-Path $kit 'assets.revision'
     $inputs = Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.py' | Sort-Object Name
